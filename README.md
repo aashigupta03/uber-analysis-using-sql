@@ -26,7 +26,7 @@ This project analyzes Uber ride booking data using **MySQL** to generate busines
 
 ## Key Business Analyses
 - Revenue & Month-over-Month Growth
-- Customer Segmentation (Pareto Analysis)
+- Customer Segmentation 
 - Rolling Revenue Analysis
 - Ride Cancellation Analysis
 - Vehicle & Payment Method Performance
