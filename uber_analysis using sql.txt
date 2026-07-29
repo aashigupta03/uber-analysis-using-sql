@@ -1,0 +1,199 @@
+# Customers Whose Revenue Increased for 3 Consecutive Months
+WITH monthly_revenue AS (
+    SELECT
+        `CUSTOMER ID`,
+        YEAR(`DATE`) AS yr,
+        MONTH(`DATE`) AS mon,
+        SUM(`BOOKING VALUE`) AS revenue
+    FROM UBER
+    GROUP BY `CUSTOMER ID`, YEAR(`DATE`), MONTH(`DATE`)
+),
+cte AS (
+    SELECT *,
+        LAG(revenue,1) OVER(PARTITION BY `CUSTOMER ID` ORDER BY yr,mon) AS prev1,
+        LAG(revenue,2) OVER(PARTITION BY `CUSTOMER ID` ORDER BY yr,mon) AS prev2
+    FROM monthly_revenue
+)
+SELECT *
+FROM cte
+WHERE revenue > prev1
+AND prev1 > prev2;
+
+# Longest Consecutive Ride Streak
+WITH cte AS (
+SELECT DISTINCT
+    `CUSTOMER ID`,
+    `DATE`,
+    ROW_NUMBER() OVER(
+        PARTITION BY `CUSTOMER ID`
+        ORDER BY `DATE`
+    ) rn
+FROM UBER
+),
+grp_cte AS (
+SELECT *,
+DATE_SUB(`DATE`,INTERVAL rn DAY) grp
+FROM cte
+)
+
+SELECT
+`CUSTOMER ID`,
+COUNT(*) streak
+FROM grp_cte
+GROUP BY `CUSTOMER ID`,grp;
+
+#Top 10% Customers
+WITH cte AS
+(
+SELECT
+`CUSTOMER ID`,
+SUM(`BOOKING VALUE`) revenue
+FROM UBER
+GROUP BY `CUSTOMER ID`
+)
+
+SELECT *,
+NTILE(10) OVER(ORDER BY revenue DESC) decile
+FROM cte
+WHERE decile=1;
+
+#Fraudulent Customers
+WITH cte AS
+(
+SELECT
+`CUSTOMER ID`,
+TIMESTAMP(`DATE`,`TIME`) booking_time
+FROM UBER
+)
+
+SELECT
+`CUSTOMER ID`,
+DATE(booking_time),
+HOUR(booking_time),
+COUNT(*) rides
+FROM cte
+GROUP BY
+`CUSTOMER ID`,
+DATE(booking_time),
+HOUR(booking_time)
+HAVING COUNT(*)>5;
+
+# Rolling 7-Day Revenue
+WITH daily AS
+(
+SELECT
+`DATE`,
+SUM(`BOOKING VALUE`) revenue
+FROM UBER
+GROUP BY `DATE`
+)
+
+SELECT *,
+SUM(revenue) OVER(
+ORDER BY `DATE`
+ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+) rolling_revenue
+FROM daily;
+
+# Customers Taking Rides on Consecutive Days
+WITH cte AS
+(
+SELECT
+`CUSTOMER ID`,
+`DATE`,
+LAG(`DATE`) OVER(
+PARTITION BY `CUSTOMER ID`
+ORDER BY `DATE`
+) prev_date
+FROM UBER
+)
+
+SELECT *
+FROM cte
+WHERE DATEDIFF(`DATE`,prev_date)=1;
+
+# Second Highest Revenue Route
+WITH cte AS
+(
+SELECT
+`PICKUP LOCATION`,
+`DROP LOCATION`,
+SUM(`BOOKING VALUE`) revenue,
+
+DENSE_RANK() OVER(
+ORDER BY SUM(`BOOKING VALUE`) DESC
+) rnk
+
+FROM UBER
+
+GROUP BY
+`PICKUP LOCATION`,
+`DROP LOCATION`
+)
+
+SELECT *
+FROM cte
+WHERE rnk=2;
+
+# Duplicate Bookings
+SELECT
+`BOOKING ID`,
+COUNT(*)
+FROM UBER
+GROUP BY `BOOKING ID`
+HAVING COUNT(*)>1;
+
+# Revenue Drop Month-over-Month
+WITH monthly AS
+(
+SELECT
+MONTH(`DATE`) month_no,
+SUM(`BOOKING VALUE`) revenue
+FROM UBER
+GROUP BY MONTH(`DATE`)
+)
+
+SELECT *,
+LAG(revenue) OVER(ORDER BY month_no) prev_month
+FROM monthly;
+
+# Most Preferred Payment Method by Vehicle Type
+WITH cte AS
+(
+SELECT
+`VEHICLE TYPE`,
+`PAYMENT METHOD`,
+COUNT(*) cnt,
+
+DENSE_RANK() OVER(
+PARTITION BY `VEHICLE TYPE`
+ORDER BY COUNT(*) DESC
+) rnk
+
+FROM UBER
+
+GROUP BY
+`VEHICLE TYPE`,
+`PAYMENT METHOD`
+)
+
+SELECT *
+FROM cte
+WHERE rnk=1;
+
+# Revenue contribution of each pickup location
+WITH cte AS
+(
+SELECT
+`PICKUP LOCATION`,
+SUM(`BOOKING VALUE`) revenue
+FROM UBER
+GROUP BY `PICKUP LOCATION`
+)
+
+SELECT *,
+ROUND(
+revenue*100/
+SUM(revenue) OVER(),2
+) contribution
+FROM cte;
